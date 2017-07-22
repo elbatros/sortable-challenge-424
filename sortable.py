@@ -39,14 +39,24 @@ class Node:
     return self.data
 
   def insert(self, product_name, pos=0):
-    curr_word = product_name[pos]
-    if curr_word not in self.children:
-      self.children[curr_word] = Node(curr_word)
+    if pos == len(product_name):
+      self.children["_end"] = "_end"
     else:
-      if pos == len(product_name) - 1:
-        self.children[curr_word].data = curr_word
-      else:
-        self.children[curr_word].insert(product_name, pos+1)
+      curr_word = product_name[pos]
+      if curr_word not in self.children:
+        self.children[curr_word] = Node(curr_word)
+      self.children[curr_word].insert(product_name, pos+1)
+
+  def search(self, search_space, listing_name, pos=0):
+    if pos == len(listing_name) or self.data == "_end":
+      print(pos, listing_name, self.data)
+      return True
+
+    curr_word = listing_name[pos]
+    if curr_word not in search_space:
+      return False
+    else:
+      return self.search(search_space[curr_word].children, listing_name, pos+1)
 
 class Trie:
   def __init__(self):
@@ -55,34 +65,38 @@ class Trie:
   def insert(self, product_name):
     self.root.insert(product_name)
 
+  def is_in_trie(self, listing_name):
+    return self.root.search(self.root.children, listing_name, 0)
+
+def read_file(file_path):
+  f = open(file_path, encoding="utf-8")
+  content = [json.loads(line) for line in f]
+  f.close()
+  return content
+
 # all lowercase, alphanumeric
 def process_product_name(name):
   return re.split('[W\_-]', name.lower())
 
 # lowercase, alphanumeric, one space in between each word
-def process_listing_title(title):
+def process_listing_name(title):
   processed = re.split('[W\s_-]', title.lower())
   return [word for word in processed if word != '']
 
 def main():
-  f = open("./listings.txt", encoding="utf-8")
-  listings = [json.loads(line) for line in f]
-  f.close()
-
-  f = open("./products.txt", encoding="utf-8")
-  products = [json.loads(line) for line in f]
-  f.close()
+  listings = read_file("./listings.txt")
+  products = read_file("./products.txt")
 
   # will compare listings against this trie
   product_trie = Trie()
   for p in products:
     product_trie.insert(process_product_name(p["product_name"]))
 
-  # preparing listings product names
-  processed_listings = listings
-  for l in processed_listings:
-    print(process_listing_title(l["title"]))
-    # l["title"] = process_name(l["title"])
+  #preparing listings product names
+  for l in listings:
+    processed_name = process_listing_name(l["title"])
+    if product_trie.is_in_trie(processed_name):
+      print(processed_name)
 
 if __name__ == "__main__":
   main()
