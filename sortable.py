@@ -28,45 +28,68 @@ return:
 '''
 
 import json
-import re
 
-class Node:
-  def __init__(self, data=""):
-    self.data = data
-    self.children = dict()
+class Product:
+  def __init__(self, product_json):
+    self.product_name = product_json["product_name"]
+    self.manufacturer = product_json["manufacturer"]
+    if "family" in product_json:
+      self.family = product_json["family"]
+    else:
+      self.family = "_none"
+    self.model = product_json["model"]
 
   def __str__(self):
-    return self.data
+    return self.product_name
 
-  def insert(self, product_name, pos=0):
-    if pos == len(product_name):
-      self.children["_end"] = "_end"
-    else:
-      curr_word = product_name[pos]
-      if curr_word not in self.children:
-        self.children[curr_word] = Node(curr_word)
-      self.children[curr_word].insert(product_name, pos+1)
-
-  def search(self, search_space, listing_name, pos=0):
-    if pos == len(listing_name) or self.data == "_end":
-      print(pos, listing_name, self.data)
-      return True
-
-    curr_word = listing_name[pos]
-    if curr_word not in search_space:
-      return False
-    else:
-      return self.search(search_space[curr_word].children, listing_name, pos+1)
-
-class Trie:
+class Catalogue:
   def __init__(self):
-    self.root = Node()
+    self.catalogue = {}
+    self.match_results = {}
 
-  def insert(self, product_name):
-    self.root.insert(product_name)
+  def insert(self, product):
+    manu = product.manufacturer
+    family = product.family
+    model = product.model
+    if manu not in self.catalogue:
+      self.catalogue[manu] = {}
+    if family not in self.catalogue[manu]:
+      self.catalogue[manu][family] = {}
+    if model not in self.catalogue[manu][family]:
+      self.catalogue[manu][family][model] = product
 
-  def is_in_trie(self, listing_name):
-    return self.root.search(self.root.children, listing_name, 0)
+  def search(self, listing):
+    title = listing["title"]
+    manu = listing["manufacturer"]
+    words = title.split()
+    
+    matched_manu = None
+    for m in self.catalogue.keys():
+      if m in manu:
+        matched_manu = m
+        break
+
+    matched_family = None
+    if matched_manu != None:
+      for f in self.catalogue[matched_manu].keys():
+        if f in title:
+          matched_family = f
+          break
+
+    matched_model = None
+    if matched_family != None:
+      for mo in self.catalogue[matched_manu][matched_family].keys():
+        if mo in words:
+          matched_product = self.catalogue[matched_manu][matched_family][mo]
+          # print("Listing: %s" % listing["title"])
+          # print("Product: %s\n" % matched_product)
+          if matched_product.product_name not in self.match_results:
+            self.match_results[matched_product.product_name] = [listing]
+          else:
+            self.match_results[matched_product.product_name].append(listing)
+          break
+
+
 
 def read_file(file_path):
   f = open(file_path, encoding="utf-8")
@@ -74,29 +97,29 @@ def read_file(file_path):
   f.close()
   return content
 
-# all lowercase, alphanumeric
-def process_product_name(name):
-  return re.split('[W\_-]', name.lower())
-
-# lowercase, alphanumeric, one space in between each word
-def process_listing_name(title):
-  processed = re.split('[W\s_-]', title.lower())
-  return [word for word in processed if word != '']
-
 def main():
   listings = read_file("./listings.txt")
   products = read_file("./products.txt")
 
-  # will compare listings against this trie
-  product_trie = Trie()
-  for p in products:
-    product_trie.insert(process_product_name(p["product_name"]))
+  catalogue = Catalogue()
+  for product_json in products:
+    product = Product(product_json)
+    catalogue.insert(product)
+  
+  for listing in listings:
+    catalogue.search(listing)
 
-  #preparing listings product names
-  for l in listings:
-    processed_name = process_listing_name(l["title"])
-    if product_trie.is_in_trie(processed_name):
-      print(processed_name)
+  result = {}
+  f = open("results.txt", 'w')
+  for product in catalogue.match_results:
+    f.write(json.dumps(
+      {
+        "product_name": product,
+        "listings": catalogue.match_results[product]
+      }
+    ))
+    f.write('\n')
+  f.close()
 
 if __name__ == "__main__":
   main()
