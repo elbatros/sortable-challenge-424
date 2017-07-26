@@ -28,6 +28,7 @@ return:
 '''
 
 import json
+from collections import defaultdict
 
 class Product:
   def __init__(self, product_json):
@@ -45,7 +46,7 @@ class Product:
 class Catalogue:
   def __init__(self):
     self.catalogue = {}
-    self.match_results = {}
+    self.match_results = defaultdict(list)
 
   def insert(self, product):
     manu = product.manufacturer
@@ -76,18 +77,20 @@ class Catalogue:
           matched_family = f
           break
 
-    matched_model = None
-    if matched_family != None:
-      for mo in self.catalogue[matched_manu][matched_family].keys():
-        if mo in words:
-          matched_product = self.catalogue[matched_manu][matched_family][mo]
-          # print("Listing: %s" % listing["title"])
-          # print("Product: %s\n" % matched_product)
-          if matched_product.product_name not in self.match_results:
-            self.match_results[matched_product.product_name] = [listing]
-          else:
+    if matched_manu != None:
+      if matched_family == None:
+        for f in self.catalogue[matched_manu].keys():
+          for mo in self.catalogue[matched_manu][f].keys():
+            if mo in words:
+              matched_product = self.catalogue[matched_manu][f][mo]
+              self.match_results[matched_product.product_name].append(listing)
+              break
+      else:
+        for mo in self.catalogue[matched_manu][matched_family].keys():
+          if mo in words:
+            matched_product = self.catalogue[matched_manu][matched_family][mo]
             self.match_results[matched_product.product_name].append(listing)
-          break
+            break
 
 
 
@@ -96,6 +99,19 @@ def read_file(file_path):
   content = [json.loads(line) for line in f]
   f.close()
   return content
+
+def write_results(matches):
+  result = {}
+  f = open("results.txt", 'w')
+  for product in matches:
+    f.write(json.dumps(
+      {
+        "product_name": product,
+        "listings": matches[product]
+      }
+    ))
+    f.write('\n')
+  f.close()
 
 def main():
   listings = read_file("./listings.txt")
@@ -109,17 +125,7 @@ def main():
   for listing in listings:
     catalogue.search(listing)
 
-  result = {}
-  f = open("results.txt", 'w')
-  for product in catalogue.match_results:
-    f.write(json.dumps(
-      {
-        "product_name": product,
-        "listings": catalogue.match_results[product]
-      }
-    ))
-    f.write('\n')
-  f.close()
+  write_results(catalogue.match_results)  
 
 if __name__ == "__main__":
   main()
