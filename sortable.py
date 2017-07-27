@@ -29,6 +29,7 @@ return:
 
 import json
 from collections import defaultdict
+from math import sqrt
 
 class Product:
   def __init__(self, product_json):
@@ -37,12 +38,17 @@ class Product:
     if "family" in product_json:
       self.family = product_json["family"]
     else:
+      # set it as _none to give self.family some value
       self.family = "_none"
     self.model = product_json["model"]
 
   def __str__(self):
     return self.product_name
 
+# 3-level deep nested dict
+# 1: manufacturer
+# 2: family
+# 3: model
 class Catalogue:
   def __init__(self):
     self.catalogue = {}
@@ -59,40 +65,37 @@ class Catalogue:
     if model not in self.catalogue[manu][family]:
       self.catalogue[manu][family][model] = product
 
-  def search(self, listing):
+  def search(self, search_space, level):
+    for k,v in level.items():
+      if k in search_space:
+        return k
+    return None
+
+  def match(self, listing):
     title = listing["title"]
     manu = listing["manufacturer"]
     words = title.split()
     
-    matched_manu = None
-    for m in self.catalogue.keys():
-      if m in manu:
-        matched_manu = m
-        break
+    matched_manu = self.search(manu, self.catalogue)
 
-    matched_family = None
+    # just stop if no matching manufacturer
     if matched_manu != None:
-      for f in self.catalogue[matched_manu].keys():
-        if f in title:
-          matched_family = f
-          break
-
-    if matched_manu != None:
+      matched_family = self.search(title, self.catalogue[matched_manu])
+      matched_model = None
+      
+      # listing may not have family info, but it always has model info
       if matched_family == None:
-        for f in self.catalogue[matched_manu].keys():
-          for mo in self.catalogue[matched_manu][f].keys():
-            if mo in words:
-              matched_product = self.catalogue[matched_manu][f][mo]
-              self.match_results[matched_product.product_name].append(listing)
-              break
-      else:
-        for mo in self.catalogue[matched_manu][matched_family].keys():
-          if mo in words:
-            matched_product = self.catalogue[matched_manu][matched_family][mo]
-            self.match_results[matched_product.product_name].append(listing)
+        for family, models in self.catalogue[matched_manu].items():
+          matched_model = self.search(words, self.catalogue[matched_manu][family])
+          if matched_model != None:
+            matched_family = family
             break
-
-
+      else:
+        matched_model = self.search(words, self.catalogue[matched_manu][matched_family])
+    
+      if matched_model != None:
+        matched_product = self.catalogue[matched_manu][matched_family][matched_model]
+        self.match_results[matched_product.product_name].append(listing)
 
 def read_file(file_path):
   f = open(file_path, encoding="utf-8")
@@ -102,7 +105,7 @@ def read_file(file_path):
 
 def write_results(matches):
   result = {}
-  f = open("results.txt", 'w')
+  f = open("results3.txt", 'w')
   for product in matches:
     f.write(json.dumps(
       {
@@ -112,6 +115,23 @@ def write_results(matches):
     ))
     f.write('\n')
   f.close()
+
+# only include listings within 2 SDs to weed out listings for parts, battery packs, etc
+# basically only include listings with reasonable prices
+def filter_sd(match_result):
+  price_sum = 0
+  for listing in match_result:
+    price_sum += float(listing["price"])
+  avg_sum = price_sum / len(match_result)
+
+  diffs_sum = 0
+  for listing in match_result:
+    diffs_sum += (float(listing["price"]) - avg_sum) ** 2
+
+  st_dev = sqrt(diffs_sum / len(match_result))
+  lower = avg_sum - 2*st_dev
+  upper = avg_sum + 2*st_dev
+  return [l for l in match_result if lower <= float(l["price"]) and float(l["price"]) <= upper]
 
 def main():
   listings = read_file("./listings.txt")
@@ -123,7 +143,10 @@ def main():
     catalogue.insert(product)
   
   for listing in listings:
-    catalogue.search(listing)
+    catalogue.match(listing)
+
+  for product in catalogue.match_results:
+    catalogue.match_results[product] = filter_sd(catalogue.match_results[product])
 
   write_results(catalogue.match_results)  
 
