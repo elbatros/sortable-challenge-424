@@ -28,19 +28,20 @@ return:
 '''
 
 import json
+import re
 from collections import defaultdict
 from math import sqrt
 
 class Product:
   def __init__(self, product_json):
     self.product_name = product_json["product_name"]
-    self.manufacturer = product_json["manufacturer"]
+    self.manufacturer = alphanumeric_lower(product_json["manufacturer"])
     if "family" in product_json:
-      self.family = product_json["family"]
+      self.family = alphanumeric_lower(product_json["family"])
     else:
       # set it as _none to give self.family some value
       self.family = "_none"
-    self.model = product_json["model"]
+    self.model = alphanumeric_lower(product_json["model"])
 
   def __str__(self):
     return self.product_name
@@ -72,9 +73,9 @@ class Catalogue:
     return None
 
   def match(self, listing):
-    title = listing["title"]
-    manu = listing["manufacturer"]
-    words = title.split()
+    title = listing["title"].lower()
+    manu = listing["manufacturer"].lower()
+    words = [alphanumeric_lower(s) for s in title.split()]
     
     matched_manu = self.search(manu, self.catalogue)
 
@@ -93,6 +94,7 @@ class Catalogue:
       else:
         matched_model = self.search(words, self.catalogue[matched_manu][matched_family])
     
+      # add the listing to the match result if a matching model is found
       if matched_model != None:
         matched_product = self.catalogue[matched_manu][matched_family][matched_model]
         self.match_results[matched_product.product_name].append(listing)
@@ -115,6 +117,11 @@ def write_results(matches):
     ))
     f.write('\n')
   f.close()
+
+# want to match something like SX130_IS to SX130IS
+def alphanumeric_lower(s):
+  stripped = re.sub('[^0-9a-zA-Z]+', '', s)
+  return stripped.lower()
 
 # only include listings within 2 SDs to weed out listings for parts, battery packs, etc
 # basically only include listings with reasonable prices
@@ -141,7 +148,7 @@ def main():
   for product_json in products:
     product = Product(product_json)
     catalogue.insert(product)
-  
+
   for listing in listings:
     catalogue.match(listing)
 
