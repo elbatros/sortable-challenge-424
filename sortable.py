@@ -163,7 +163,7 @@ def main():
   for product in catalogue.match_results:
     catalogue.match_results[product] = filter_sd(catalogue.match_results[product])
 
-  write_results(catalogue.match_results)  
+  write_results(catalogue.match_results)
 
 if __name__ == "__main__":
   main()
