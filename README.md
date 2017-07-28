@@ -1,5 +1,6 @@
 # Sortable Challenge
-With Python 3 installed, run:
+1. Clone the repo
+2. With Python 3 installed, run:
 ```
 python3 sortable.py
 ```
