@@ -46,7 +46,7 @@ class Product:
   def __str__(self):
     return self.product_name
 
-# 3-level deep nested dict
+# 3 level deep nested dict
 # 1: manufacturer
 # 2: family
 # 3: model
@@ -55,6 +55,7 @@ class Catalogue:
     self.catalogue = {}
     self.match_results = defaultdict(list)
 
+  # break down the catalogue into 3 levels
   def insert(self, product):
     manu = product.manufacturer
     family = product.family
@@ -66,8 +67,11 @@ class Catalogue:
     if model not in self.catalogue[manu][family]:
       self.catalogue[manu][family][model] = product
 
+  # search space changes depending on which property we wanna match for
+  # e.g. for manufacturer, obviously we can look at the manufacturer of the listing
   def search(self, search_space, level):
     for k,v in level.items():
+      # "in" instead of "==" to match cases like Canon vs Canon Canada
       if k in search_space:
         return k
     return None
@@ -75,24 +79,27 @@ class Catalogue:
   def match(self, listing):
     title = listing["title"].lower()
     manu = listing["manufacturer"].lower()
-    words = [alphanumeric_lower(s) for s in title.split()]
+    listing_words = [alphanumeric_lower(s) for s in title.split()]
     
     matched_manu = self.search(manu, self.catalogue)
 
-    # just stop if no matching manufacturer
+    # just stop if no matched manufacturer
     if matched_manu != None:
       matched_family = self.search(title, self.catalogue[matched_manu])
       matched_model = None
       
-      # listing may not have family info, but it always has model info
+      # listing may not have family info, but it always has model info,
+      # so dont stop even if we dont find family
       if matched_family == None:
+
+        # have to search every model for that manufacturer if no family info is given
         for family, models in self.catalogue[matched_manu].items():
-          matched_model = self.search(words, self.catalogue[matched_manu][family])
+          matched_model = self.search(listing_words, self.catalogue[matched_manu][family])
           if matched_model != None:
             matched_family = family
             break
       else:
-        matched_model = self.search(words, self.catalogue[matched_manu][matched_family])
+        matched_model = self.search(listing_words, self.catalogue[matched_manu][matched_family])
     
       # add the listing to the match result if a matching model is found
       if matched_model != None:
@@ -107,7 +114,7 @@ def read_file(file_path):
 
 def write_results(matches):
   result = {}
-  f = open("results3.txt", 'w')
+  f = open("results.txt", 'w')
   for product in matches:
     f.write(json.dumps(
       {
@@ -117,13 +124,14 @@ def write_results(matches):
     ))
     f.write('\n')
   f.close()
+  print("Complete!")
 
 # want to match something like SX130_IS to SX130IS
 def alphanumeric_lower(s):
   stripped = re.sub('[^0-9a-zA-Z]+', '', s)
   return stripped.lower()
 
-# only include listings within 2 SDs to weed out listings for parts, battery packs, etc
+# only include listings within 2 SDs to filter out listings for parts, battery packs, etc
 # basically only include listings with reasonable prices
 def filter_sd(match_result):
   price_sum = 0
